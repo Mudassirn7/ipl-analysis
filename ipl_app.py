@@ -1,12 +1,10 @@
 # =========================================================
-# IPL PREDICTOR — STREAMLIT CLOUD FIXED VERSION
-# Works with IPL.zip + IPL.csv
+# IPL PREDICTOR — KAGGLE DATASET VERSION
 # =========================================================
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import zipfile
 import os
 import warnings
 
@@ -119,16 +117,32 @@ st.markdown(
 st.markdown("---")
 
 # =========================================================
-# EXTRACT ZIP
+# LOAD DATASET FROM KAGGLE
 # =========================================================
 
-ZIP_FILE = "IPL.zip"
 CSV_FILE = "IPL.csv"
 
-if os.path.exists(ZIP_FILE):
+if not os.path.exists(CSV_FILE):
+    try:
+        os.environ["KAGGLE_USERNAME"] = st.secrets["kaggle"]["username"]
+        os.environ["KAGGLE_KEY"] = st.secrets["kaggle"]["key"]
 
-    with zipfile.ZipFile(ZIP_FILE, 'r') as zip_ref:
-        zip_ref.extractall()
+        import kaggle
+        kaggle.api.authenticate()
+
+        kaggle.api.dataset_download_files(
+            "chaitu20/ipl-dataset2008-2025",
+            path=".",
+            unzip=True
+        )
+
+    except Exception as e:
+        st.error(f"Dataset download failed: {e}")
+        st.stop()
+
+if not os.path.exists(CSV_FILE):
+    st.error("IPL.csv not found after download. Check Kaggle dataset.")
+    st.stop()
 
 # =========================================================
 # LOAD DATA
@@ -141,12 +155,10 @@ df = pd.read_csv(CSV_FILE)
 # =========================================================
 
 TEAM_NAME_MAPPING = {
-
     "Delhi Daredevils": "Delhi Capitals",
     "Kings XI Punjab": "Punjab Kings",
     "Deccan Chargers": "Sunrisers Hyderabad",
     "Gujarat Lions": "Gujarat Titans"
-
 }
 
 df["batting_team"] = df["batting_team"].replace(TEAM_NAME_MAPPING)
@@ -157,34 +169,16 @@ df["bowling_team"] = df["bowling_team"].replace(TEAM_NAME_MAPPING)
 # =========================================================
 
 VENUE_MAPPING = {
-
-    "Arun Jaitley Stadium, Delhi":
-        "Arun Jaitley Stadium",
-
-    "Arun Jaitley Stadium":
-        "Arun Jaitley Stadium",
-
-    "M Chinnaswamy Stadium":
-        "M. Chinnaswamy Stadium",
-
-    "M.Chinnaswamy Stadium":
-        "M. Chinnaswamy Stadium",
-
-    "MA Chidambaram Stadium":
-        "M. A. Chidambaram Stadium",
-
-    "MA Chidambaram Stadium, Chepauk":
-        "M. A. Chidambaram Stadium",
-
-    "Punjab Cricket Association Stadium":
-        "PCA Stadium",
-
-    "Punjab Cricket Association IS Bindra Stadium":
-        "PCA Stadium",
-
-    "Rajiv Gandhi International Stadium":
-        "Rajiv Gandhi Intl. Cricket Stadium"
-
+    "Arun Jaitley Stadium, Delhi": "Arun Jaitley Stadium",
+    "Arun Jaitley Stadium": "Arun Jaitley Stadium",
+    "M Chinnaswamy Stadium": "M. Chinnaswamy Stadium",
+    "M.Chinnaswamy Stadium": "M. Chinnaswamy Stadium",
+    "MA Chidambaram Stadium": "M. A. Chidambaram Stadium",
+    "MA Chidambaram Stadium, Chepauk": "M. A. Chidambaram Stadium",
+    "Punjab Cricket Association Stadium": "PCA Stadium",
+    "Punjab Cricket Association IS Bindra Stadium": "PCA Stadium",
+    "Rajiv Gandhi International Stadium": "Rajiv Gandhi Intl. Cricket Stadium",
+    "Rajiv Gandhi Intl. Cricket Stadium": "Rajiv Gandhi Intl. Cricket Stadium"
 }
 
 df["venue"] = df["venue"].replace(VENUE_MAPPING)
@@ -194,7 +188,6 @@ df["venue"] = df["venue"].replace(VENUE_MAPPING)
 # =========================================================
 
 IPL_TEAMS = [
-
     "Chennai Super Kings",
     "Mumbai Indians",
     "Royal Challengers Bangalore",
@@ -205,7 +198,6 @@ IPL_TEAMS = [
     "Punjab Kings",
     "Lucknow Super Giants",
     "Gujarat Titans"
-
 ]
 
 # =========================================================
@@ -274,7 +266,6 @@ score_df = df[[
 ]].dropna()
 
 score_df.columns = [
-
     "batting_team",
     "bowling_team",
     "venue",
@@ -283,7 +274,6 @@ score_df.columns = [
     "overs",
     "crr",
     "final_score"
-
 ]
 
 score_df["batting_team"] = score_df["batting_team"].map(TEAM_ENC)
@@ -304,45 +294,23 @@ targets.columns = ["match_id", "target"]
 
 win_df = df[df["innings"] == 2].copy()
 
-win_df = win_df.merge(
-    targets,
-    on="match_id"
-)
+win_df = win_df.merge(targets, on="match_id")
 
 win_df["runs_left"] = (
-    win_df["target"] + 1 -
-    win_df["team_score"]
+    win_df["target"] + 1 - win_df["team_score"]
 )
 
 win_df["balls_left"] = (
-    120 - (
-        (win_df["over"] * 6) +
-        win_df["ball"]
-    )
+    120 - ((win_df["over"] * 6) + win_df["ball"])
 )
 
-win_df["balls_left"] = (
-    win_df["balls_left"].replace(0, 1)
-)
+win_df["balls_left"] = win_df["balls_left"].replace(0, 1)
 
 win_df["required_run_rate"] = (
-    win_df["runs_left"] * 6 /
-    win_df["balls_left"]
+    win_df["runs_left"] * 6 / win_df["balls_left"]
 )
 
-# =========================================================
-# BETTER WIN LABEL
-# =========================================================
-
-win_df["winner"] = np.where(
-    win_df["runs_left"] <= 0,
-    1,
-    0
-)
-
-# =========================================================
-# FINAL WIN DATA
-# =========================================================
+win_df["winner"] = np.where(win_df["runs_left"] <= 0, 1, 0)
 
 win_df = win_df[[
     "batting_team",
@@ -368,236 +336,98 @@ win_df["venue"] = win_df["venue"].map(VENUE_ENC)
 @st.cache_resource
 def train_models():
 
-    # =========================
-    # REGRESSION
-    # =========================
-
     Xr = score_df[[
-        "batting_team",
-        "bowling_team",
-        "venue",
-        "current_runs",
-        "wickets",
-        "overs",
-        "crr"
+        "batting_team", "bowling_team", "venue",
+        "current_runs", "wickets", "overs", "crr"
     ]]
-
     yr = score_df["final_score"]
 
     Xr_train, Xr_test, yr_train, yr_test = train_test_split(
-        Xr,
-        yr,
-        test_size=0.2,
-        random_state=42
-    )
-
-    rf_r = RandomForestRegressor(
-        n_estimators=50,
-        max_depth=6,
-        min_samples_leaf=15,
-        random_state=42
-    )
-
-    gb_r = GradientBoostingRegressor(
-        n_estimators=60,
-        max_depth=3,
-        random_state=42
-    )
-
-    lr_r = LinearRegression()
-
-    dt_r = DecisionTreeRegressor(
-        max_depth=5,
-        min_samples_leaf=20,
-        random_state=42
+        Xr, yr, test_size=0.2, random_state=42
     )
 
     REG_MODELS = {
-
-        "Random Forest": rf_r,
-        "Gradient Boosting": gb_r,
-        "Linear Regression": lr_r,
-        "Decision Tree": dt_r
-
+        "Random Forest": RandomForestRegressor(
+            n_estimators=50, max_depth=6,
+            min_samples_leaf=15, random_state=42
+        ),
+        "Gradient Boosting": GradientBoostingRegressor(
+            n_estimators=60, max_depth=3, random_state=42
+        ),
+        "Linear Regression": LinearRegression(),
+        "Decision Tree": DecisionTreeRegressor(
+            max_depth=5, min_samples_leaf=20, random_state=42
+        )
     }
 
     for model in REG_MODELS.values():
         model.fit(Xr_train, yr_train)
 
-    # =========================
-    # CLASSIFICATION
-    # =========================
-
     Xc = win_df[[
-        "batting_team",
-        "bowling_team",
-        "venue",
-        "target",
-        "team_score",
-        "wickets",
-        "overs_completed",
-        "current_run_rate",
-        "required_run_rate"
+        "batting_team", "bowling_team", "venue",
+        "target", "team_score", "wickets",
+        "overs_completed", "current_run_rate", "required_run_rate"
     ]]
-
     yc = win_df["winner"]
 
     Xc_train, Xc_test, yc_train, yc_test = train_test_split(
-        Xc,
-        yc,
-        test_size=0.2,
-        random_state=42
-    )
-
-    rf_c = RandomForestClassifier(
-        n_estimators=50,
-        max_depth=5,
-        min_samples_leaf=20,
-        random_state=42
-    )
-
-    gb_c = GradientBoostingClassifier(
-        n_estimators=60,
-        max_depth=3,
-        random_state=42
-    )
-
-    lr_c = LogisticRegression(
-        max_iter=1000
-    )
-
-    dt_c = DecisionTreeClassifier(
-        max_depth=4,
-        min_samples_leaf=25,
-        random_state=42
+        Xc, yc, test_size=0.2, random_state=42
     )
 
     CLS_MODELS = {
-
-        "Random Forest": rf_c,
-        "Gradient Boosting": gb_c,
-        "Logistic Regression": lr_c,
-        "Decision Tree": dt_c
-
+        "Random Forest": RandomForestClassifier(
+            n_estimators=50, max_depth=5,
+            min_samples_leaf=20, random_state=42
+        ),
+        "Gradient Boosting": GradientBoostingClassifier(
+            n_estimators=60, max_depth=3, random_state=42
+        ),
+        "Logistic Regression": LogisticRegression(max_iter=1000),
+        "Decision Tree": DecisionTreeClassifier(
+            max_depth=4, min_samples_leaf=25, random_state=42
+        )
     }
 
     for model in CLS_MODELS.values():
         model.fit(Xc_train, yc_train)
 
-    # =========================
-    # REGRESSION METRICS
-    # =========================
-
     reg_metrics = {}
-
     for name, model in REG_MODELS.items():
-
         train_pred = model.predict(Xr_train)
         test_pred = model.predict(Xr_test)
-
         train_r2 = r2_score(yr_train, train_pred)
         test_r2 = r2_score(yr_test, test_pred)
-
         reg_metrics[name] = {
-
             "Train R2": round(train_r2, 4),
             "Test R2": round(test_r2, 4),
-
-            "RMSE": round(
-                np.sqrt(
-                    mean_squared_error(
-                        yr_test,
-                        test_pred
-                    )
-                ),
-                2
-            ),
-
-            "MAE": round(
-                mean_absolute_error(
-                    yr_test,
-                    test_pred
-                ),
-                2
-            ),
-
-            "Overfit": (
-                "Yes"
-                if abs(train_r2 - test_r2) > 0.10
-                else "No"
-            )
-
+            "RMSE": round(np.sqrt(mean_squared_error(yr_test, test_pred)), 2),
+            "MAE": round(mean_absolute_error(yr_test, test_pred), 2),
+            "Overfit": "Yes" if abs(train_r2 - test_r2) > 0.10 else "No"
         }
-
-    # =========================
-    # CLASSIFICATION METRICS
-    # =========================
 
     cls_metrics = {}
-
     for name, model in CLS_MODELS.items():
-
         train_pred = model.predict(Xc_train)
         test_pred = model.predict(Xc_test)
-
-        train_acc = accuracy_score(
-            yc_train,
-            train_pred
-        ) * 100
-
-        test_acc = accuracy_score(
-            yc_test,
-            test_pred
-        ) * 100
-
+        train_acc = accuracy_score(yc_train, train_pred) * 100
+        test_acc = accuracy_score(yc_test, test_pred) * 100
         cls_metrics[name] = {
-
             "Train Accuracy": round(train_acc, 2),
-
             "Test Accuracy": round(test_acc, 2),
-
-            "Precision": round(
-                precision_score(yc_test, test_pred) * 100,
-                2
-            ),
-
-            "Recall": round(
-                recall_score(yc_test, test_pred) * 100,
-                2
-            ),
-
-            "F1 Score": round(
-                f1_score(yc_test, test_pred) * 100,
-                2
-            ),
-
-            "Overfit": (
-                "Yes"
-                if abs(train_acc - test_acc) > 5
-                else "No"
-            )
-
+            "Precision": round(precision_score(yc_test, test_pred) * 100, 2),
+            "Recall": round(recall_score(yc_test, test_pred) * 100, 2),
+            "F1 Score": round(f1_score(yc_test, test_pred) * 100, 2),
+            "Overfit": "Yes" if abs(train_acc - test_acc) > 5 else "No"
         }
 
-    return (
-        REG_MODELS,
-        CLS_MODELS,
-        reg_metrics,
-        cls_metrics
-    )
+    return REG_MODELS, CLS_MODELS, reg_metrics, cls_metrics
 
 # =========================================================
 # TRAIN
 # =========================================================
 
 with st.spinner("Training Models..."):
-
-    (
-        REG_MODELS,
-        CLS_MODELS,
-        REG_METRICS,
-        CLS_METRICS
-    ) = train_models()
+    REG_MODELS, CLS_MODELS, REG_METRICS, CLS_METRICS = train_models()
 
 st.success("Models Trained Successfully ✅")
 
@@ -622,84 +452,30 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-
-        batting_team = st.selectbox(
-            "Batting Team",
-            IPL_TEAMS
-        )
-
+        batting_team = st.selectbox("Batting Team", IPL_TEAMS, key="bat1")
         bowling_team = st.selectbox(
             "Bowling Team",
-            [x for x in IPL_TEAMS if x != batting_team]
+            [x for x in IPL_TEAMS if x != batting_team],
+            key="bowl1"
         )
-
-        venue = st.selectbox(
-            "Venue",
-            IPL_VENUES
-        )
-
-        model_name = st.selectbox(
-            "ML Model",
-            list(REG_MODELS.keys())
-        )
+        venue = st.selectbox("Venue", IPL_VENUES, key="venue1")
+        model_name = st.selectbox("ML Model", list(REG_MODELS.keys()), key="model1")
 
     with col2:
+        current_runs = st.number_input("Current Runs", 0, 300, 80)
+        wickets = st.slider("Wickets", 0, 9, 2, key="wk1")
+        over_num = st.slider("Overs", 0, 19, 10, key="ov1")
+        ball_num = st.slider("Balls", 0, 5, 0, key="ball1")
+        overs = round(over_num + (ball_num / 6), 2)
+        st.caption(f"{over_num}.{ball_num} overs")
 
-        current_runs = st.number_input(
-            "Current Runs",
-            0,
-            300,
-            80
-        )
-
-        wickets = st.slider(
-            "Wickets",
-            0,
-            9,
-            2
-        )
-
-        over_num = st.slider(
-            "Overs",
-            0,
-            19,
-            10
-        )
-
-        ball_num = st.slider(
-            "Balls",
-            0,
-            5,
-            0
-        )
-
-        overs = round(
-            over_num + (ball_num / 6),
-            2
-        )
-
-        st.caption(
-            f"{over_num}.{ball_num} overs"
-        )
-
-    if st.button("Predict Final Score"):
-
+    if st.button("Predict Final Score", key="btn1"):
         crr = current_runs / max(overs, 0.1)
-
         X = np.array([[
-            TEAM_ENC[batting_team],
-            TEAM_ENC[bowling_team],
-            VENUE_ENC[venue],
-            current_runs,
-            wickets,
-            overs,
-            crr
+            TEAM_ENC[batting_team], TEAM_ENC[bowling_team],
+            VENUE_ENC[venue], current_runs, wickets, overs, crr
         ]])
-
-        prediction = int(
-            REG_MODELS[model_name].predict(X)[0]
-        )
-
+        prediction = int(REG_MODELS[model_name].predict(X)[0])
         st.markdown(f"""
         <div class="result-box">
         <p>Predicted Final Score</p>
@@ -718,108 +494,37 @@ with tab2:
     col1, col2 = st.columns(2)
 
     with col1:
-
-        chasing_team = st.selectbox(
-            "Chasing Team",
-            IPL_TEAMS
-        )
-
+        chasing_team = st.selectbox("Chasing Team", IPL_TEAMS, key="ct")
         defending_team = st.selectbox(
             "Defending Team",
-            [x for x in IPL_TEAMS if x != chasing_team]
+            [x for x in IPL_TEAMS if x != chasing_team],
+            key="dt"
         )
-
-        venue2 = st.selectbox(
-            "Venue",
-            IPL_VENUES
-        )
-
-        model_name2 = st.selectbox(
-            "ML Model",
-            list(CLS_MODELS.keys())
-        )
+        venue2 = st.selectbox("Venue", IPL_VENUES, key="venue2")
+        model_name2 = st.selectbox("ML Model", list(CLS_MODELS.keys()), key="model2")
 
     with col2:
+        target = st.number_input("Target", 50, 300, 180)
+        current_score = st.number_input("Current Score", 0, 300, 90)
+        wickets2 = st.slider("Wickets Fallen", 0, 9, 3, key="wk2")
+        over_num2 = st.slider("Overs", 0, 19, 10, key="ov2")
+        ball_num2 = st.slider("Balls", 0, 5, 0, key="ball2")
+        overs2 = round(over_num2 + (ball_num2 / 6), 2)
+        st.caption(f"{over_num2}.{ball_num2} overs")
 
-        target = st.number_input(
-            "Target",
-            50,
-            300,
-            180
-        )
-
-        current_score = st.number_input(
-            "Current Score",
-            0,
-            300,
-            90
-        )
-
-        wickets2 = st.slider(
-            "Wickets Fallen",
-            0,
-            9,
-            3
-        )
-
-        over_num2 = st.slider(
-            "Overs",
-            0,
-            19,
-            10
-        )
-
-        ball_num2 = st.slider(
-            "Balls",
-            0,
-            5,
-            0
-        )
-
-        overs2 = round(
-            over_num2 + (ball_num2 / 6),
-            2
-        )
-
-        st.caption(
-            f"{over_num2}.{ball_num2} overs"
-        )
-
-    if st.button("Predict Winner"):
-
+    if st.button("Predict Winner", key="btn2"):
         crr = current_score / max(overs2, 0.1)
-
-        rrr = (
-            (target - current_score) /
-            max((20 - overs2), 0.1)
-        )
-
+        rrr = (target - current_score) / max((20 - overs2), 0.1)
         X2 = np.array([[
-            TEAM_ENC[chasing_team],
-            TEAM_ENC[defending_team],
-            VENUE_ENC[venue2],
-            target,
-            current_score,
-            wickets2,
-            overs2,
-            crr,
-            rrr
+            TEAM_ENC[chasing_team], TEAM_ENC[defending_team],
+            VENUE_ENC[venue2], target, current_score,
+            wickets2, overs2, crr, rrr
         ]])
-
         model = CLS_MODELS[model_name2]
-
         pred = model.predict(X2)[0]
-
         prob = model.predict_proba(X2)[0]
-
-        winner = (
-            chasing_team
-            if pred == 1
-            else defending_team
-        )
-
+        winner = chasing_team if pred == 1 else defending_team
         confidence = round(max(prob) * 100, 2)
-
         st.markdown(f"""
         <div class="result-box">
         <p>Predicted Winner</p>
@@ -835,36 +540,21 @@ with tab2:
 with tab3:
 
     st.subheader("Regression Report")
-
     reg_table = pd.DataFrame(REG_METRICS).T
-
-    st.dataframe(
-        reg_table,
-        width='stretch'
-    )
+    st.dataframe(reg_table, use_container_width=True)
 
     st.markdown("---")
 
     st.subheader("Classification Report")
-
     cls_table = pd.DataFrame(CLS_METRICS).T
-
-    st.dataframe(
-        cls_table,
-        width='stretch'
-    )
+    st.dataframe(cls_table, use_container_width=True)
 
 # =========================================================
 # FOOTER
 # =========================================================
 
 st.markdown("---")
-
 st.markdown(
-    """
-    <center>
-    IPL Predictor using Real IPL Dataset + Machine Learning
-    </center>
-    """,
+    "<center>IPL Predictor using Real IPL Dataset + Machine Learning</center>",
     unsafe_allow_html=True
 )
