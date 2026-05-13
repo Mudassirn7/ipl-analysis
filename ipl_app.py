@@ -47,7 +47,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS
+# CUSTOM CSS
 # =========================================================
 
 st.markdown("""
@@ -61,9 +61,9 @@ h1,h2,h3,h4,h5,h6,p,div,span,label {
     color: black !important;
 }
 
-.ipl-title {
+.ipl-title{
     text-align:center;
-    font-size:55px;
+    font-size:60px;
     font-weight:bold;
     color:#ff6b00 !important;
 }
@@ -93,10 +93,10 @@ h1,h2,h3,h4,h5,h6,p,div,span,label {
     width:100%;
     background:#ff6b00;
     color:white;
-    font-size:20px;
     border:none;
     border-radius:10px;
     padding:12px;
+    font-size:20px;
 }
 
 </style>
@@ -107,14 +107,14 @@ h1,h2,h3,h4,h5,h6,p,div,span,label {
 # =========================================================
 
 st.markdown(
-    "<p class='ipl-title'>🏏 IPL PREDICTOR</p>",
+    "<p class='ipl-title'>🏏 IPL Predictor</p>",
     unsafe_allow_html=True
 )
 
 st.markdown("---")
 
 # =========================================================
-# DOWNLOAD DATASET
+# DOWNLOAD DATASET FROM GOOGLE DRIVE
 # =========================================================
 
 FILE_ID = "1mr2IIjhMOtRp0ZDlVLw_IFxmAY_ExGUL"
@@ -132,10 +132,9 @@ if not os.path.exists(DATA_FILE):
 # =========================================================
 
 df = pd.read_csv(DATA_FILE)
-st.write(df.columns.tolist())
 
 # =========================================================
-# FIX TEAM NAMES
+# TEAM NAME FIXING
 # =========================================================
 
 TEAM_NAME_MAPPING = {
@@ -171,7 +170,7 @@ IPL_TEAMS = [
 ]
 
 # =========================================================
-# FILTER CURRENT TEAMS
+# FILTER ONLY CURRENT TEAMS
 # =========================================================
 
 df = df[
@@ -183,59 +182,33 @@ df = df[
 # VENUES
 # =========================================================
 
-if "venue" in df.columns:
-    IPL_VENUES = sorted(df["venue"].dropna().unique().tolist())
-else:
-    IPL_VENUES = ["Unknown Stadium"]
-    df["venue"] = "Unknown Stadium"
+IPL_VENUES = sorted(
+    df["venue"].dropna().unique().tolist()
+)
 
 # =========================================================
-# CREATE OVERS COLUMN
+# OVERS COMPLETED
 # =========================================================
 
-df["overs"] = df["over"] + (df["ball"] / 6)
+df["overs_completed"] = (
+    df["over"] + (df["ball"] / 6)
+)
 
 # =========================================================
-# CREATE TEAM SCORE
+# TEAM SCORE + WICKETS
 # =========================================================
 
-df["team_score"] = df.groupby(
-    ["match_id", "innings"]
-)["total_runs"].cumsum()
+df["team_score"] = df["team_runs"]
 
-# =========================================================
-# CREATE WICKETS
-# =========================================================
-
-# Detect wicket column automatically
-
-if "is_wicket" in df.columns:
-
-    wicket_col = "is_wicket"
-
-elif "player_dismissed" in df.columns:
-
-    df["is_wicket"] = df["player_dismissed"].notnull().astype(int)
-
-    wicket_col = "is_wicket"
-
-else:
-
-    df["is_wicket"] = 0
-
-    wicket_col = "is_wicket"
-
-df["team_wicket"] = df.groupby(
-    ["match_id", "innings"]
-)[wicket_col].cumsum()
+df["wickets"] = df["team_wicket"]
 
 # =========================================================
 # CURRENT RUN RATE
 # =========================================================
 
-df["crr"] = (
+df["current_run_rate"] = (
     df["team_score"] /
-    df["overs"].replace(0, 0.1)
+    df["overs_completed"].replace(0, 0.1)
 )
 
 # =========================================================
@@ -267,13 +240,14 @@ score_df = df[[
     "bowling_team",
     "venue",
     "team_score",
-    "team_wicket",
-    "overs",
-    "crr",
+    "wickets",
+    "overs_completed",
+    "current_run_rate",
     "final_score"
 ]].dropna()
 
 score_df.columns = [
+
     "batting_team",
     "bowling_team",
     "venue",
@@ -282,6 +256,7 @@ score_df.columns = [
     "overs",
     "crr",
     "final_score"
+
 ]
 
 score_df["batting_team"] = score_df["batting_team"].map(TEAM_ENC)
@@ -296,7 +271,9 @@ score_df["venue"] = score_df["venue"].map(VENUE_ENC)
 
 innings1 = df[df["innings"] == 1]
 
-targets = innings1.groupby("match_id")["team_score"].max().reset_index()
+targets = innings1.groupby(
+    "match_id"
+)["team_score"].max().reset_index()
 
 targets.columns = ["match_id", "target"]
 
@@ -308,23 +285,33 @@ win_df = win_df.merge(
 )
 
 win_df["runs_left"] = (
-    win_df["target"] + 1 - win_df["team_score"]
+    win_df["target"] + 1 -
+    win_df["team_score"]
 )
 
 win_df["balls_left"] = (
-    120 - ((win_df["over"] * 6) + win_df["ball"])
+    120 - (
+        (win_df["over"] * 6) +
+        win_df["ball"]
+    )
 )
 
-win_df["balls_left"] = win_df["balls_left"].replace(0, 1)
+win_df["balls_left"] = (
+    win_df["balls_left"].replace(0, 1)
+)
 
-win_df["rrr"] = (
+win_df["required_run_rate"] = (
     win_df["runs_left"] * 6 /
     win_df["balls_left"]
 )
 
+# Winner label
+
 win_df["winner"] = (
     win_df["runs_left"] <= 0
 ).astype(int)
+
+# Keep required columns
 
 win_df = win_df[[
     "batting_team",
@@ -332,12 +319,14 @@ win_df = win_df[[
     "venue",
     "target",
     "team_score",
-    "team_wicket",
-    "overs",
-    "crr",
-    "rrr",
+    "wickets",
+    "overs_completed",
+    "current_run_rate",
+    "required_run_rate",
     "winner"
 ]].dropna()
+
+# Encoding
 
 win_df["batting_team"] = win_df["batting_team"].map(TEAM_ENC)
 
@@ -352,9 +341,9 @@ win_df["venue"] = win_df["venue"].map(VENUE_ENC)
 @st.cache_resource
 def train_models():
 
-    # ==========================
+    # =====================================================
     # SCORE PREDICTION
-    # ==========================
+    # =====================================================
 
     Xr = score_df[[
         "batting_team",
@@ -390,19 +379,21 @@ def train_models():
         random_state=42
     )
 
-    reg_models = {
+    REG_MODELS = {
+
         "Random Forest": rf_r,
         "Gradient Boosting": gb_r,
         "Linear Regression": lr_r,
         "Decision Tree": dt_r
+
     }
 
-    for model in reg_models.values():
+    for model in REG_MODELS.values():
         model.fit(Xr_train, yr_train)
 
-    # ==========================
+    # =====================================================
     # WIN PREDICTION
-    # ==========================
+    # =====================================================
 
     Xc = win_df[[
         "batting_team",
@@ -410,10 +401,10 @@ def train_models():
         "venue",
         "target",
         "team_score",
-        "team_wicket",
-        "overs",
-        "crr",
-        "rrr"
+        "wickets",
+        "overs_completed",
+        "current_run_rate",
+        "required_run_rate"
     ]]
 
     yc = win_df["winner"]
@@ -442,28 +433,103 @@ def train_models():
         random_state=42
     )
 
-    cls_models = {
+    CLS_MODELS = {
+
         "Random Forest": rf_c,
         "Gradient Boosting": gb_c,
         "Logistic Regression": lr_c,
         "Decision Tree": dt_c
+
     }
 
-    for model in cls_models.values():
+    for model in CLS_MODELS.values():
         model.fit(Xc_train, yc_train)
 
+    # =====================================================
+    # METRICS
+    # =====================================================
+
+    reg_metrics = {}
+
+    for name, model in REG_MODELS.items():
+
+        pred_train = model.predict(Xr_train)
+
+        pred_test = model.predict(Xr_test)
+
+        reg_metrics[name] = {
+
+            "Train R2": round(
+                r2_score(yr_train, pred_train), 4
+            ),
+
+            "Test R2": round(
+                r2_score(yr_test, pred_test), 4
+            ),
+
+            "RMSE": round(
+                np.sqrt(
+                    mean_squared_error(yr_test, pred_test)
+                ), 2
+            ),
+
+            "MAE": round(
+                mean_absolute_error(yr_test, pred_test), 2
+            )
+
+        }
+
+    cls_metrics = {}
+
+    for name, model in CLS_MODELS.items():
+
+        pred_train = model.predict(Xc_train)
+
+        pred_test = model.predict(Xc_test)
+
+        cls_metrics[name] = {
+
+            "Train Accuracy": round(
+                accuracy_score(yc_train, pred_train) * 100, 2
+            ),
+
+            "Test Accuracy": round(
+                accuracy_score(yc_test, pred_test) * 100, 2
+            ),
+
+            "Precision": round(
+                precision_score(yc_test, pred_test) * 100, 2
+            ),
+
+            "Recall": round(
+                recall_score(yc_test, pred_test) * 100, 2
+            ),
+
+            "F1 Score": round(
+                f1_score(yc_test, pred_test) * 100, 2
+            )
+
+        }
+
     return (
-        reg_models,
-        cls_models
+        REG_MODELS,
+        CLS_MODELS,
+        reg_metrics,
+        cls_metrics
     )
 
 # =========================================================
-# TRAIN
+# TRAINING
 # =========================================================
 
-with st.spinner("Training models on real IPL data..."):
+with st.spinner("Training models on real IPL dataset..."):
 
-    REG_MODELS, CLS_MODELS = train_models()
+    (
+        REG_MODELS,
+        CLS_MODELS,
+        REG_METRICS,
+        CLS_METRICS
+    ) = train_models()
 
 st.success("Models Trained Successfully ✅")
 
@@ -471,16 +537,21 @@ st.success("Models Trained Successfully ✅")
 # TABS
 # =========================================================
 
-tab1, tab2 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
+
     "🎯 Score Predictor",
-    "🏆 Win Predictor"
+    "🏆 Win Predictor",
+    "📊 Model Metrics"
+
 ])
 
 # =========================================================
-# SCORE PREDICTOR
+# TAB 1 : SCORE PREDICTION
 # =========================================================
 
 with tab1:
+
+    st.subheader("Predict Final Innings Score")
 
     col1, col2 = st.columns(2)
 
@@ -502,7 +573,7 @@ with tab1:
         )
 
         model_name = st.selectbox(
-            "Model",
+            "ML Model",
             list(REG_MODELS.keys())
         )
 
@@ -523,13 +594,13 @@ with tab1:
         )
 
         overs = st.slider(
-            "Overs",
+            "Overs Completed",
             0.1,
             20.0,
             10.0
         )
 
-    if st.button("🎯 Predict Score"):
+    if st.button("🎯 Predict Final Score"):
 
         crr = current_runs / max(overs, 0.1)
 
@@ -548,40 +619,47 @@ with tab1:
         )
 
         st.markdown(f"""
-        <div class='result-box'>
+        <div class="result-box">
+
             <p>Predicted Final Score</p>
-            <p class='big-score'>{prediction}</p>
+
+            <p class="big-score">
+                {prediction}
+            </p>
+
         </div>
         """, unsafe_allow_html=True)
 
 # =========================================================
-# WIN PREDICTOR
+# TAB 2 : WIN PREDICTION
 # =========================================================
 
 with tab2:
+
+    st.subheader("Predict Match Winner")
 
     col1, col2 = st.columns(2)
 
     with col1:
 
-        chase_team = st.selectbox(
+        chasing_team = st.selectbox(
             "Chasing Team",
             IPL_TEAMS
         )
 
-        defend_team = st.selectbox(
+        defending_team = st.selectbox(
             "Defending Team",
-            [x for x in IPL_TEAMS if x != chase_team]
+            [x for x in IPL_TEAMS if x != chasing_team]
         )
 
         venue2 = st.selectbox(
             "Venue",
             IPL_VENUES,
-            key="v2"
+            key="venue2"
         )
 
         model_name2 = st.selectbox(
-            "Model",
+            "ML Model",
             list(CLS_MODELS.keys())
         )
 
@@ -594,7 +672,7 @@ with tab2:
             180
         )
 
-        score = st.number_input(
+        current_score = st.number_input(
             "Current Score",
             0,
             300,
@@ -602,7 +680,7 @@ with tab2:
         )
 
         wickets2 = st.slider(
-            "Wickets",
+            "Wickets Fallen",
             0,
             9,
             3
@@ -617,19 +695,19 @@ with tab2:
 
     if st.button("🏆 Predict Winner"):
 
-        crr = score / max(overs2, 0.1)
+        crr = current_score / max(overs2, 0.1)
 
         rrr = (
-            (target - score) /
-            max(20 - overs2, 0.1)
+            (target - current_score) /
+            max((20 - overs2), 0.1)
         )
 
         X2 = np.array([[
-            TEAM_ENC[chase_team],
-            TEAM_ENC[defend_team],
+            TEAM_ENC[chasing_team],
+            TEAM_ENC[defending_team],
             VENUE_ENC[venue2],
             target,
-            score,
+            current_score,
             wickets2,
             overs2,
             crr,
@@ -642,19 +720,60 @@ with tab2:
 
         prob = model.predict_proba(X2)[0]
 
-        winner = chase_team if pred == 1 else defend_team
+        winner = (
+            chasing_team
+            if pred == 1
+            else defending_team
+        )
 
-        confidence = round(max(prob) * 100, 2)
+        confidence = round(
+            max(prob) * 100,
+            2
+        )
 
         st.markdown(f"""
-        <div class='result-box'>
+        <div class="result-box">
+
             <p>Predicted Winner</p>
-            <p class='win-team'>{winner}</p>
-            <p>Confidence: {confidence}%</p>
+
+            <p class="win-team">
+                {winner}
+            </p>
+
+            <p>
+                Confidence: {confidence}%
+            </p>
+
         </div>
         """, unsafe_allow_html=True)
 
         st.progress(int(prob[1] * 100))
+
+# =========================================================
+# TAB 3 : METRICS
+# =========================================================
+
+with tab3:
+
+    st.subheader("Regression Models")
+
+    reg_table = pd.DataFrame(REG_METRICS).T
+
+    st.dataframe(
+        reg_table,
+        use_container_width=True
+    )
+
+    st.markdown("---")
+
+    st.subheader("Classification Models")
+
+    cls_table = pd.DataFrame(CLS_METRICS).T
+
+    st.dataframe(
+        cls_table,
+        use_container_width=True
+    )
 
 # =========================================================
 # FOOTER
@@ -663,6 +782,10 @@ with tab2:
 st.markdown("---")
 
 st.markdown(
-    "<center>IPL Predictor using Real IPL Dataset + Machine Learning</center>",
+    """
+    <center>
+    IPL Predictor using Real IPL Dataset + Machine Learning
+    </center>
+    """,
     unsafe_allow_html=True
 )
