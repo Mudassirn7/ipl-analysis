@@ -151,56 +151,79 @@ df["batting_team"] = df["batting_team"].replace(TEAM_NAME_MAPPING)
 df["bowling_team"] = df["bowling_team"].replace(TEAM_NAME_MAPPING)
 
 # =========================================================
-# FIX DUPLICATE STADIUM NAMES
+# CLEAN VENUE NAMES
 # =========================================================
 
-VENUE_MAPPING = {
+def clean_venue_name(name):
 
-    "Arun Jaitley Stadium, Delhi":
-        "Arun Jaitley Stadium",
+    if pd.isna(name):
+        return name
 
-    "MA Chidambaram Stadium, Chepauk":
-        "M. A. Chidambaram Stadium",
+    name = str(name).strip()
 
-    "MA Chidambaram Stadium":
-        "M. A. Chidambaram Stadium",
+    # remove city after comma
+    if "," in name:
+        name = name.split(",")[0].strip()
 
-    "M Chinnaswamy Stadium":
-        "M. Chinnaswamy Stadium",
+    # standard fixes
+    replacements = {
 
-    "Punjab Cricket Association Stadium":
-        "PCA Stadium, Mohali",
+        "M Chinnaswamy Stadium":
+            "M. Chinnaswamy Stadium",
 
-    "Punjab Cricket Association IS Bindra Stadium":
-        "PCA Stadium, Mohali",
+        "MA Chidambaram Stadium":
+            "M. A. Chidambaram Stadium",
 
-    "Punjab Cricket Association IS Bindra Stadium, Mohali":
-        "PCA Stadium, Mohali",
+        "MA Chidambaram Stadium Chepauk":
+            "M. A. Chidambaram Stadium",
 
-    "Rajiv Gandhi International Stadium":
-        "Rajiv Gandhi Intl. Cricket Stadium",
+        "Punjab Cricket Association Stadium":
+            "PCA Stadium",
 
-    "Rajiv Gandhi International Stadium, Uppal":
-        "Rajiv Gandhi Intl. Cricket Stadium",
+        "Punjab Cricket Association IS Bindra Stadium":
+            "PCA Stadium",
 
-    "Rajiv Gandhi Intl. Cricket Stadium, Hyderabad":
-        "Rajiv Gandhi Intl. Cricket Stadium",
+        "Punjab Cricket Association IS Bindra Stadium Mohali":
+            "PCA Stadium",
 
-    "Wankhede Stadium, Mumbai":
-        "Wankhede Stadium",
+        "Rajiv Gandhi International Stadium":
+            "Rajiv Gandhi Intl. Cricket Stadium",
 
-    "Eden Gardens, Kolkata":
-        "Eden Gardens",
+        "Rajiv Gandhi International Stadium Uppal":
+            "Rajiv Gandhi Intl. Cricket Stadium",
 
-    "Sawai Mansingh Stadium, Jaipur":
-        "Sawai Mansingh Stadium",
+        "Arun Jaitley Stadium Delhi":
+            "Arun Jaitley Stadium",
 
-    "Narendra Modi Stadium, Ahmedabad":
-        "Narendra Modi Stadium"
+        "Dr DY Patil Sports Academy":
+            "DY Patil Stadium",
 
-}
+        "Brabourne Stadium Mumbai":
+            "Brabourne Stadium"
 
-df["venue"] = df["venue"].replace(VENUE_MAPPING)
+    }
+
+    # remove dots for matching
+    check_name = (
+        name.replace(".", "")
+            .replace(",", "")
+            .strip()
+    )
+
+    for old, new in replacements.items():
+
+        old_check = (
+            old.replace(".", "")
+               .replace(",", "")
+               .strip()
+        )
+
+        if check_name.lower() == old_check.lower():
+            return new
+
+    return name
+
+df["venue"] = df["venue"].apply(clean_venue_name)
 
 # =========================================================
 # CURRENT IPL TEAMS
