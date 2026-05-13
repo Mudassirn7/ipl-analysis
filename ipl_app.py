@@ -669,13 +669,30 @@ with tab1:
             key="wk1"
         )
 
-        overs = st.slider(
-            "Overs Completed",
-            0.1,
-            20.0,
-            10.0,
-            key="ov1"
-        )
+        over_num = st.slider(
+    "Overs",
+    0,
+    19,
+    10,
+    key="ov_num1"
+)
+
+ball_num = st.slider(
+    "Balls",
+    0,
+    5,
+    0,
+    key="ball_num1"
+)
+
+overs = round(
+    over_num + (ball_num / 6),
+    4
+)
+
+st.caption(
+    f"{over_num}.{ball_num} overs"
+)
 
     if st.button("Predict Final Score", key="btn1"):
 
@@ -762,13 +779,30 @@ with tab2:
             key="wk2"
         )
 
-        overs2 = st.slider(
-            "Overs Completed",
-            0.1,
-            20.0,
-            10.0,
-            key="ov2"
-        )
+        over_num2 = st.slider(
+    "Overs",
+    0,
+    19,
+    10,
+    key="ov_num2"
+)
+
+ball_num2 = st.slider(
+    "Balls",
+    0,
+    5,
+    0,
+    key="ball_num2"
+)
+
+overs2 = round(
+    over_num2 + (ball_num2 / 6),
+    4
+)
+
+st.caption(
+    f"{over_num2}.{ball_num2} overs"
+)
 
     if st.button("Predict Winner", key="btn2"):
 
