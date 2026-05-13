@@ -296,12 +296,16 @@ VENUE_ENC = {
 # =========================================================
 
 df["overs_completed"] = df["over"] + (df["ball"] / 6)
+# Running Team Score
+df["team_score"] = df.groupby(
+    ["match_id", "innings"]
+)["total_runs"].cumsum()
 
+# Current Run Rate
 df["current_run_rate"] = (
     df["team_score"] /
     df["overs_completed"].replace(0, 0.1)
 )
-
 # =========================================================
 # SCORE PREDICTION DATASET
 # =========================================================
