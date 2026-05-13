@@ -216,8 +216,8 @@ def train_models():
         60, 260).astype(int)
     Xr = np.column_stack([bat,bowl,ven,runs,wkts,ovs,l5r,l5w])
 
-    rf_r=RandomForestRegressor(n_estimators=100,random_state=42).fit(Xr,final)
-    gb_r=GradientBoostingRegressor(n_estimators=100,random_state=42).fit(Xr,final)
+    rf_r=RandomForestRegressor(n_estimators=100,max_depth=10,min_samples_leaf=10,random_state=42).fit(Xr,final)
+    gb_r=GradientBoostingRegressor(n_estimators=100,max_depth=4,min_samples_leaf=10,random_state=42).fit(Xr,final)
     lr_r=LinearRegression().fit(Xr,final)
     dt_r=DecisionTreeRegressor(max_depth=8,random_state=42).fit(Xr,final)
 
@@ -230,8 +230,8 @@ def train_models():
     lbl=(np.random.rand(n)<wp).astype(int)
     Xc=np.column_stack([t1,t2,v2,tgt,cs,ov2,wk2,rrr,crr2])
 
-    rf_c=RandomForestClassifier(n_estimators=100,random_state=42).fit(Xc,lbl)
-    gb_c=GradientBoostingClassifier(n_estimators=100,random_state=42).fit(Xc,lbl)
+    rf_c=RandomForestClassifier(n_estimators=100,max_depth=10,min_samples_leaf=10,random_state=42).fit(Xc,lbl)
+    gb_c=GradientBoostingClassifier(n_estimators=100,max_depth=4,min_samples_leaf=10,random_state=42).fit(Xc,lbl)
     lr_c=LogisticRegression(max_iter=500).fit(Xc,lbl)
     dt_c=DecisionTreeClassifier(max_depth=8,random_state=42).fit(Xc,lbl)
 
