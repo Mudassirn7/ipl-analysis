@@ -593,12 +593,13 @@ with tab1:
             2
         )
 
-        overs = st.slider(
-            "Overs Completed",
-            0.1,
-            20.0,
-            10.0
-        )
+        overs2 = st.slider(
+    "Overs Completed",
+    0.1,
+    20.0,
+    10.0,
+    key="win_overs"
+)
 
     if st.button("🎯 Predict Final Score"):
 
@@ -686,12 +687,13 @@ with tab2:
             3
         )
 
-        overs2 = st.slider(
-            "Overs Completed",
-            0.1,
-            20.0,
-            10.0
-        )
+        overs = st.slider(
+    "Overs Completed",
+    0.1,
+    20.0,
+    10.0,
+    key="score_overs"
+)
 
     if st.button("🏆 Predict Winner"):
 
