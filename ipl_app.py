@@ -151,6 +151,58 @@ df["batting_team"] = df["batting_team"].replace(TEAM_NAME_MAPPING)
 df["bowling_team"] = df["bowling_team"].replace(TEAM_NAME_MAPPING)
 
 # =========================================================
+# FIX DUPLICATE STADIUM NAMES
+# =========================================================
+
+VENUE_MAPPING = {
+
+    "Arun Jaitley Stadium, Delhi":
+        "Arun Jaitley Stadium",
+
+    "MA Chidambaram Stadium, Chepauk":
+        "M. A. Chidambaram Stadium",
+
+    "MA Chidambaram Stadium":
+        "M. A. Chidambaram Stadium",
+
+    "M Chinnaswamy Stadium":
+        "M. Chinnaswamy Stadium",
+
+    "Punjab Cricket Association Stadium":
+        "PCA Stadium, Mohali",
+
+    "Punjab Cricket Association IS Bindra Stadium":
+        "PCA Stadium, Mohali",
+
+    "Punjab Cricket Association IS Bindra Stadium, Mohali":
+        "PCA Stadium, Mohali",
+
+    "Rajiv Gandhi International Stadium":
+        "Rajiv Gandhi Intl. Cricket Stadium",
+
+    "Rajiv Gandhi International Stadium, Uppal":
+        "Rajiv Gandhi Intl. Cricket Stadium",
+
+    "Rajiv Gandhi Intl. Cricket Stadium, Hyderabad":
+        "Rajiv Gandhi Intl. Cricket Stadium",
+
+    "Wankhede Stadium, Mumbai":
+        "Wankhede Stadium",
+
+    "Eden Gardens, Kolkata":
+        "Eden Gardens",
+
+    "Sawai Mansingh Stadium, Jaipur":
+        "Sawai Mansingh Stadium",
+
+    "Narendra Modi Stadium, Ahmedabad":
+        "Narendra Modi Stadium"
+
+}
+
+df["venue"] = df["venue"].replace(VENUE_MAPPING)
+
+# =========================================================
 # CURRENT IPL TEAMS
 # =========================================================
 
