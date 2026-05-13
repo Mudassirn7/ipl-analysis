@@ -1,5 +1,5 @@
 # =========================================================
-# IPL PREDICTOR — FINAL ENHANCED VERSION
+# IPL PREDICTOR — FINAL ENHANCED VERSION (FIXED)
 # =========================================================
 
 import streamlit as st
@@ -32,8 +32,6 @@ from sklearn.tree import (
     DecisionTreeClassifier
 )
 
-from xgboost import XGBRegressor, XGBClassifier
-
 from sklearn.metrics import (
     mean_squared_error,
     mean_absolute_error,
@@ -44,6 +42,8 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix
 )
+
+from xgboost import XGBRegressor, XGBClassifier
 
 warnings.filterwarnings("ignore")
 
@@ -556,14 +556,14 @@ def train_models():
 
         cls_metrics[name] = {
 
-            "Train Acc": round(
+            "Train Accuracy": round(
                 accuracy_score(
                     yc_train,
                     train_pred
                 ) * 100, 2
             ),
 
-            "Test Acc": round(
+            "Test Accuracy": round(
                 accuracy_score(
                     yc_test,
                     test_pred
@@ -584,7 +584,7 @@ def train_models():
                 ) * 100, 2
             ),
 
-            "F1": round(
+            "F1 Score": round(
                 f1_score(
                     yc_test,
                     test_pred
@@ -658,22 +658,26 @@ with tab1:
 
         batting_team = st.selectbox(
             "Batting Team",
-            IPL_TEAMS
+            IPL_TEAMS,
+            key="bat1"
         )
 
         bowling_team = st.selectbox(
             "Bowling Team",
-            [x for x in IPL_TEAMS if x != batting_team]
+            [x for x in IPL_TEAMS if x != batting_team],
+            key="bowl1"
         )
 
         venue = st.selectbox(
             "Venue",
-            IPL_VENUES
+            IPL_VENUES,
+            key="venue1"
         )
 
         model_name = st.selectbox(
             "ML Model",
-            list(REG_MODELS.keys())
+            list(REG_MODELS.keys()),
+            key="model1"
         )
 
     with col2:
@@ -682,28 +686,32 @@ with tab1:
             "Current Runs",
             0,
             300,
-            80
+            80,
+            key="runs1"
         )
 
         wickets = st.slider(
             "Wickets",
             0,
             9,
-            2
+            2,
+            key="wk1"
         )
 
         over_num = st.slider(
             "Overs",
             0,
             19,
-            10
+            10,
+            key="ov1"
         )
 
         ball_num = st.slider(
             "Balls",
             0,
             5,
-            0
+            0,
+            key="ball1"
         )
 
         overs = round(
@@ -711,7 +719,10 @@ with tab1:
             2
         )
 
-    if st.button("Predict Final Score"):
+    if st.button(
+        "Predict Final Score",
+        key="btn1"
+    ):
 
         crr = current_runs / max(overs, 0.1)
 
@@ -750,22 +761,26 @@ with tab2:
 
         chasing_team = st.selectbox(
             "Chasing Team",
-            IPL_TEAMS
+            IPL_TEAMS,
+            key="ct"
         )
 
         defending_team = st.selectbox(
             "Defending Team",
-            [x for x in IPL_TEAMS if x != chasing_team]
+            [x for x in IPL_TEAMS if x != chasing_team],
+            key="dt"
         )
 
         venue2 = st.selectbox(
             "Venue",
-            IPL_VENUES
+            IPL_VENUES,
+            key="venue2"
         )
 
         model_name2 = st.selectbox(
             "ML Model",
-            list(CLS_MODELS.keys())
+            list(CLS_MODELS.keys()),
+            key="model2"
         )
 
     with col2:
@@ -774,35 +789,40 @@ with tab2:
             "Target",
             50,
             300,
-            180
+            180,
+            key="target2"
         )
 
         current_score = st.number_input(
             "Current Score",
             0,
             300,
-            90
+            90,
+            key="score2"
         )
 
         wickets2 = st.slider(
             "Wickets Fallen",
             0,
             9,
-            3
+            3,
+            key="wk2"
         )
 
         over_num2 = st.slider(
             "Overs",
             0,
             19,
-            10
+            10,
+            key="ov2"
         )
 
         ball_num2 = st.slider(
             "Balls",
             0,
             5,
-            0
+            0,
+            key="ball2"
         )
 
         overs2 = round(
@@ -810,7 +830,10 @@ with tab2:
             2
         )
 
-    if st.button("Predict Winner"):
+    if st.button(
+        "Predict Winner",
+        key="btn2"
+    ):
 
         crr = current_score / max(overs2, 0.1)
 
@@ -894,17 +917,19 @@ with tab4:
 
     st.subheader("Dataset Analysis")
 
-    st.metric(
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric(
         "Total Matches",
         df["match_id"].nunique()
     )
 
-    st.metric(
+    col2.metric(
         "Venues",
         len(IPL_VENUES)
     )
 
-    st.metric(
+    col3.metric(
         "Rows",
         len(df)
     )
@@ -957,9 +982,13 @@ with tab5:
         reg_df["Test R2"]
     )
 
+    ax1.set_ylabel("R² Score")
+
     ax1.set_title(
-        "Regression Model Test R²"
+        "Regression Model Comparison"
     )
+
+    plt.xticks(rotation=15)
 
     st.pyplot(fig1)
 
@@ -977,23 +1006,27 @@ with tab5:
 
     cls_df.columns = [
         "Model",
-        "Train Acc",
-        "Test Acc",
+        "Train Accuracy",
+        "Test Accuracy",
         "Precision",
         "Recall",
-        "F1"
+        "F1 Score"
     ]
 
     fig2, ax2 = plt.subplots(figsize=(10, 5))
 
     ax2.bar(
         cls_df["Model"],
-        cls_df["Test Acc"]
+        cls_df["Test Accuracy"]
     )
 
+    ax2.set_ylabel("Accuracy %")
+
     ax2.set_title(
-        "Classification Accuracy"
+        "Classification Model Accuracy"
     )
+
+    plt.xticks(rotation=15)
 
     st.pyplot(fig2)
 
@@ -1005,7 +1038,13 @@ with tab5:
 
     st.subheader("Confusion Matrix")
 
-    best_model = CLS_MODELS["Random Forest"]
+    cm_model_name = st.selectbox(
+        "Select Model",
+        list(CLS_MODELS.keys()),
+        key="cm_model"
+    )
+
+    best_model = CLS_MODELS[cm_model_name]
 
     preds = best_model.predict(Xc_test)
 
@@ -1037,11 +1076,17 @@ with tab5:
 
     st.subheader("Feature Importance")
 
-    rf_model = REG_MODELS["Random Forest"]
+    feature_model = st.selectbox(
+        "Select Regression Model",
+        ["Random Forest", "Extra Trees", "XGBoost"],
+        key="feature_model"
+    )
+
+    model_obj = REG_MODELS[feature_model]
 
     importance_df = pd.DataFrame({
         "Feature": Xr_train.columns,
-        "Importance": rf_model.feature_importances_
+        "Importance": model_obj.feature_importances_
     }).sort_values(
         "Importance",
         ascending=False
@@ -1066,6 +1111,8 @@ with tab5:
 
     st.subheader("Actual vs Predicted")
 
+    rf_model = REG_MODELS["Random Forest"]
+
     pred_scores = rf_model.predict(Xr_test)
 
     fig5, ax5 = plt.subplots(figsize=(7, 7))
@@ -1075,8 +1122,8 @@ with tab5:
         pred_scores
     )
 
-    ax5.set_xlabel("Actual")
-    ax5.set_ylabel("Predicted")
+    ax5.set_xlabel("Actual Score")
+    ax5.set_ylabel("Predicted Score")
 
     st.pyplot(fig5)
 
