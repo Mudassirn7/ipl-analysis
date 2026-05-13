@@ -261,7 +261,10 @@ with tab1:
         st.markdown('<p class="section-title">INNINGS STATUS</p>', unsafe_allow_html=True)
         curr_r  = st.number_input("Current Runs",         min_value=0, max_value=250, value=85)
         wkt_s   = st.slider("Wickets Fallen",             0, 9, 2)
-        ovs_s   = st.slider("Overs Completed",            1.0, 19.5, 10.0, step=0.1)
+        ov_num_s = st.slider("Overs Completed (0-19)", 0, 19, 10, key="sc_ov")
+        bl_num_s = st.slider("Balls in Current Over (0-5)", 0, 5, 0, key="sc_bl")
+        ovs_s    = round(ov_num_s + bl_num_s / 6, 4)
+        st.caption(f"📌 {ov_num_s} overs {bl_num_s} balls = {ov_num_s}.{bl_num_s} (cricket notation)")
         l5r_s   = st.number_input("Runs in Last 5 Overs", min_value=0, max_value=100, value=45)
         l5w_s   = st.slider("Wickets in Last 5 Overs",    0, 5, 1)
 
@@ -301,7 +304,10 @@ with tab2:
         st.markdown('<p class="section-title">CHASE CONDITIONS</p>', unsafe_allow_html=True)
         tgt_w  = st.number_input("Target Score",                   min_value=50,  max_value=280, value=175)
         cs_w   = st.number_input("Current Score (Chasing Team)",   min_value=0,   max_value=280, value=90)
-        ov_w   = st.slider("Overs Completed",  1.0, 19.5, 10.0, step=0.1, key="w_ov")
+        ov_num_w = st.slider("Overs Completed (0-19)", 0, 19, 10, key="w_ov")
+        bl_num_w = st.slider("Balls in Current Over (0-5)", 0, 5, 0, key="w_bl")
+        ov_w     = round(ov_num_w + bl_num_w / 6, 4)
+        st.caption(f"📌 {ov_num_w} overs {bl_num_w} balls = {ov_num_w}.{bl_num_w} (cricket notation)")
         wk_w   = st.slider("Wickets Fallen",   0, 9, 3, key="w_wk")
 
     if st.button("🏆 PREDICT WINNER", key="b_win"):
