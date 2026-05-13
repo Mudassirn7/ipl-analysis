@@ -132,6 +132,7 @@ if not os.path.exists(DATA_FILE):
 # =========================================================
 
 df = pd.read_csv(DATA_FILE)
+st.write(df.columns.tolist())
 
 # =========================================================
 # FIX TEAM NAMES
