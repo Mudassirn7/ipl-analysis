@@ -1,6 +1,7 @@
 streamlit
 pandas
 numpy
-scikit-learn
-kaggle
 matplotlib
+scikit-learn
+xgboost
+kaggle
