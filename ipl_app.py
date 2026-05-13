@@ -1,5 +1,5 @@
 # =========================================================
-# IPL PREDICTOR - STREAMLIT APP
+# IPL PREDICTOR — FULL INTERACTIVE VERSION
 # =========================================================
 
 import streamlit as st
@@ -7,12 +7,15 @@ import numpy as np
 import pandas as pd
 import warnings
 import gdown
+import plotly.graph_objects as go
 
 warnings.filterwarnings("ignore")
 
 from sklearn.ensemble import (
     RandomForestRegressor,
-    RandomForestClassifier
+    RandomForestClassifier,
+    GradientBoostingRegressor,
+    GradientBoostingClassifier
 )
 
 from sklearn.model_selection import train_test_split
@@ -34,52 +37,84 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS
+# CUSTOM CSS
 # =========================================================
 
 st.markdown("""
 <style>
 
 html, body, .stApp {
-    background-color: white;
+    background-color: #ffffff;
     color: black;
 }
 
-.title {
+.main-title {
     text-align: center;
-    font-size: 55px;
-    font-weight: bold;
+    font-size: 70px;
+    font-weight: 900;
     color: #ff6b00;
 }
 
-.subtitle {
+.sub-title {
     text-align: center;
     color: gray;
+    font-size: 20px;
     margin-bottom: 25px;
 }
 
-.result-box {
+.box {
+    background: #fff4e6;
     padding: 25px;
-    border-radius: 15px;
-    background: #fff3e0;
+    border-radius: 18px;
     border: 2px solid #ff6b00;
-    text-align: center;
 }
 
 .big-score {
-    font-size: 70px;
-    font-weight: bold;
+    font-size: 90px;
+    font-weight: 900;
     color: #ff6b00;
+    text-align: center;
 }
 
 .winner {
-    font-size: 45px;
-    font-weight: bold;
+    font-size: 55px;
+    font-weight: 900;
     color: green;
+    text-align: center;
+}
+
+.metric-box {
+    background: #f8f9fa;
+    padding: 18px;
+    border-radius: 15px;
+    text-align: center;
+    border: 1px solid #ddd;
+}
+
+.small-text {
+    color: gray;
+    font-size: 14px;
 }
 
 </style>
 """, unsafe_allow_html=True)
+
+# =========================================================
+# CURRENT IPL TEAMS ONLY
+# =========================================================
+
+CURRENT_TEAMS = [
+    "Chennai Super Kings",
+    "Delhi Capitals",
+    "Gujarat Titans",
+    "Kolkata Knight Riders",
+    "Lucknow Super Giants",
+    "Mumbai Indians",
+    "Punjab Kings",
+    "Rajasthan Royals",
+    "Royal Challengers Bengaluru",
+    "Sunrisers Hyderabad"
+]
 
 # =========================================================
 # GOOGLE DRIVE FILE
@@ -105,7 +140,7 @@ def load_data():
     # remove unnamed columns
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
 
-    # clean column names
+    # clean columns
     df.columns = (
         df.columns
         .str.strip()
@@ -123,34 +158,40 @@ def load_data():
 def build_features(df):
 
     # -----------------------------------------------------
-    # CHECK REQUIRED COLUMNS
+    # TEAM NAME CLEANING
     # -----------------------------------------------------
 
-    required_cols = [
-        "match_id",
-        "innings",
-        "batting_team",
-        "bowling_team",
-        "over",
-        "ball"
+    team_name_map = {
+        "Delhi Daredevils": "Delhi Capitals",
+        "Kings XI Punjab": "Punjab Kings",
+        "Royal Challengers Bangalore": "Royal Challengers Bengaluru"
+    }
+
+    df["batting_team"] = df["batting_team"].replace(team_name_map)
+
+    df["bowling_team"] = df["bowling_team"].replace(team_name_map)
+
+    # -----------------------------------------------------
+    # KEEP ONLY CURRENT IPL TEAMS
+    # -----------------------------------------------------
+
+    df = df[
+        df["batting_team"].isin(CURRENT_TEAMS)
     ]
 
-    missing = [c for c in required_cols if c not in df.columns]
-
-    if missing:
-        st.error(f"Missing columns: {missing}")
-        st.write(df.columns.tolist())
-        st.stop()
+    df = df[
+        df["bowling_team"].isin(CURRENT_TEAMS)
+    ]
 
     # -----------------------------------------------------
-    # VENUE FIX
+    # FIX VENUE
     # -----------------------------------------------------
 
     if "venue" not in df.columns:
         df["venue"] = "Unknown Venue"
 
     # -----------------------------------------------------
-    # RUNS COLUMN FIX
+    # FIX RUNS
     # -----------------------------------------------------
 
     if "runs_total" not in df.columns:
@@ -161,15 +202,12 @@ def build_features(df):
         elif "batter_runs" in df.columns:
             df["runs_total"] = df["batter_runs"]
 
-        else:
-            st.error("No runs column found.")
-            st.stop()
-
     # -----------------------------------------------------
     # BALL NUMBER
     # -----------------------------------------------------
 
     if "ball_no" not in df.columns:
+
         df["ball_no"] = (
             (df["over"] * 6)
             + df["ball"]
@@ -182,29 +220,8 @@ def build_features(df):
 
     if "striker_out" not in df.columns:
 
-        if "player_dismissed" in df.columns:
-
-            df["striker_out"] = (
-                df["player_dismissed"]
-                .notna()
-                .astype(int)
-            )
-
-        elif "team_wicket" in df.columns:
-
-            df["striker_out"] = (
-                df["team_wicket"]
-                .fillna(0)
-                .astype(int)
-            )
-
-        elif "bowler_wicket" in df.columns:
-
-            df["striker_out"] = (
-                df["bowler_wicket"]
-                .fillna(0)
-                .astype(int)
-            )
+        if "team_wicket" in df.columns:
+            df["striker_out"] = df["team_wicket"]
 
         else:
             df["striker_out"] = 0
@@ -213,41 +230,23 @@ def build_features(df):
     # ENCODING
     # -----------------------------------------------------
 
-    all_teams = pd.concat([
-        df["batting_team"],
-        df["bowling_team"]
-    ]).dropna().unique()
+    all_teams = sorted(CURRENT_TEAMS)
 
-    all_venues = df["venue"].dropna().unique()
+    all_venues = sorted(df["venue"].dropna().unique())
 
     team_enc = {
-        t: i for i, t in enumerate(sorted(all_teams))
+        t: i for i, t in enumerate(all_teams)
     }
 
     venue_enc = {
-        v: i for i, v in enumerate(sorted(all_venues))
+        v: i for i, v in enumerate(all_venues)
     }
 
-    df["batting_team_enc"] = (
-        df["batting_team"]
-        .map(team_enc)
-        .fillna(0)
-        .astype(int)
-    )
+    df["batting_team_enc"] = df["batting_team"].map(team_enc)
 
-    df["bowling_team_enc"] = (
-        df["bowling_team"]
-        .map(team_enc)
-        .fillna(0)
-        .astype(int)
-    )
+    df["bowling_team_enc"] = df["bowling_team"].map(team_enc)
 
-    df["venue_enc"] = (
-        df["venue"]
-        .map(venue_enc)
-        .fillna(0)
-        .astype(int)
-    )
+    df["venue_enc"] = df["venue"].map(venue_enc)
 
     # =====================================================
     # REGRESSION DATASET
@@ -263,12 +262,12 @@ def build_features(df):
 
         final_score = mdf["runs_total"].sum()
 
-        if final_score < 50:
+        if final_score < 70:
             continue
 
         snap = mdf[mdf["ball_no"] <= 60]
 
-        if len(snap) < 10:
+        if len(snap) < 30:
             continue
 
         runs_so_far = snap["runs_total"].sum()
@@ -301,7 +300,7 @@ def build_features(df):
             overs_so_far,
             last5_runs,
             last5_wickets,
-            round(run_rate, 2),
+            run_rate,
             final_score
         ])
 
@@ -336,7 +335,7 @@ def build_features(df):
 
         snap2 = inn2m[inn2m["ball_no"] <= 60]
 
-        if len(snap2) < 6:
+        if len(snap2) < 30:
             continue
 
         cs_at10 = snap2["runs_total"].sum()
@@ -355,33 +354,20 @@ def build_features(df):
             / max(ov_at10, 0.1)
         )
 
-        pp = inn1m[inn1m["over"] < 6]
+        pp_runs = inn1m[inn1m["over"] < 6]["runs_total"].sum()
 
-        powerplay_runs = pp["runs_total"].sum()
-
-        # -------------------------------------------------
-        # WINNER LABEL
-        # -------------------------------------------------
-
+        # winner
         if "match_won_by" in mdf.columns:
 
-            won_by = (
-                str(
-                    mdf["match_won_by"]
-                    .dropna()
-                    .iloc[0]
-                )
-            )
-
-            inn1_team = (
-                inn1m["batting_team"]
+            won_by = str(
+                mdf["match_won_by"]
+                .dropna()
                 .iloc[0]
             )
 
-            label = (
-                1 if inn1_team in won_by
-                else 0
-            )
+            inn1_team = inn1m["batting_team"].iloc[0]
+
+            label = 1 if inn1_team in won_by else 0
 
         else:
             label = 0
@@ -394,9 +380,9 @@ def build_features(df):
             cs_at10,
             ov_at10,
             wk_at10,
-            round(rrr_at10, 2),
-            round(crr_at10, 2),
-            powerplay_runs,
+            rrr_at10,
+            crr_at10,
+            pp_runs,
             label
         ])
 
@@ -414,14 +400,7 @@ def build_features(df):
         "winner"
     ])
 
-    return (
-        reg_df,
-        cls_df,
-        team_enc,
-        venue_enc,
-        all_teams,
-        all_venues
-    )
+    return reg_df, cls_df, team_enc, venue_enc, all_teams, all_venues
 
 # =========================================================
 # TRAIN MODELS
@@ -430,15 +409,8 @@ def build_features(df):
 @st.cache_resource(show_spinner=False)
 def train_models(reg_df, cls_df):
 
-    # -----------------------------------------------------
-    # REGRESSION
-    # -----------------------------------------------------
-
-    Xr = reg_df.drop(
-        "final_score",
-        axis=1
-    )
-
+    # regression
+    Xr = reg_df.drop("final_score", axis=1)
     yr = reg_df["final_score"]
 
     Xr_train, Xr_test, yr_train, yr_test = train_test_split(
@@ -448,7 +420,7 @@ def train_models(reg_df, cls_df):
         random_state=42
     )
 
-    reg_model = RandomForestRegressor(
+    reg_model = GradientBoostingRegressor(
         n_estimators=200,
         random_state=42
     )
@@ -457,27 +429,10 @@ def train_models(reg_df, cls_df):
 
     pred_r = reg_model.predict(Xr_test)
 
-    reg_r2 = r2_score(
-        yr_test,
-        pred_r
-    )
+    reg_r2 = r2_score(yr_test, pred_r)
 
-    reg_rmse = (
-        mean_squared_error(
-            yr_test,
-            pred_r
-        ) ** 0.5
-    )
-
-    # -----------------------------------------------------
-    # CLASSIFICATION
-    # -----------------------------------------------------
-
-    Xc = cls_df.drop(
-        "winner",
-        axis=1
-    )
-
+    # classification
+    Xc = cls_df.drop("winner", axis=1)
     yc = cls_df["winner"]
 
     Xc_train, Xc_test, yc_train, yc_test = train_test_split(
@@ -487,7 +442,7 @@ def train_models(reg_df, cls_df):
         random_state=42
     )
 
-    cls_model = RandomForestClassifier(
+    cls_model = GradientBoostingClassifier(
         n_estimators=200,
         random_state=42
     )
@@ -496,35 +451,12 @@ def train_models(reg_df, cls_df):
 
     pred_c = cls_model.predict(Xc_test)
 
-    cls_acc = accuracy_score(
-        yc_test,
-        pred_c
-    )
+    cls_acc = accuracy_score(yc_test, pred_c)
 
-    return (
-        reg_model,
-        cls_model,
-        reg_r2,
-        reg_rmse,
-        cls_acc
-    )
+    return reg_model, cls_model, reg_r2, cls_acc
 
 # =========================================================
-# HEADER
-# =========================================================
-
-st.markdown(
-    '<div class="title">🏏 IPL PREDICTOR</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="subtitle">Real IPL Data 2008–2024</div>',
-    unsafe_allow_html=True
-)
-
-# =========================================================
-# LOAD + TRAIN
+# LOAD EVERYTHING
 # =========================================================
 
 with st.spinner("Loading IPL dataset..."):
@@ -533,37 +465,25 @@ with st.spinner("Loading IPL dataset..."):
 
 with st.spinner("Building features..."):
 
-    (
-        reg_df,
-        cls_df,
-        team_enc,
-        venue_enc,
-        all_teams,
-        all_venues
-    ) = build_features(raw_df)
+    reg_df, cls_df, team_enc, venue_enc, all_teams, all_venues = build_features(raw_df)
 
-with st.spinner("Training ML models..."):
+with st.spinner("Training AI models..."):
 
-    (
-        reg_model,
-        cls_model,
-        reg_r2,
-        reg_rmse,
-        cls_acc
-    ) = train_models(
-        reg_df,
-        cls_df
-    )
-
-st.success("Models trained successfully!")
+    reg_model, cls_model, reg_r2, cls_acc = train_models(reg_df, cls_df)
 
 # =========================================================
-# TEAM LIST
+# HEADER
 # =========================================================
 
-IPL_TEAMS = sorted(all_teams.tolist())
+st.markdown(
+    '<div class="main-title">🏏 IPL PREDICTOR</div>',
+    unsafe_allow_html=True
+)
 
-IPL_VENUES = sorted(all_venues.tolist())
+st.markdown(
+    '<div class="sub-title">Interactive AI-Based Match Prediction System</div>',
+    unsafe_allow_html=True
+)
 
 # =========================================================
 # TABS
@@ -572,37 +492,37 @@ IPL_VENUES = sorted(all_venues.tolist())
 tab1, tab2, tab3 = st.tabs([
     "🎯 Score Predictor",
     "🏆 Win Predictor",
-    "📊 Model Report"
+    "📊 Analytics"
 ])
 
 # =========================================================
-# TAB 1
+# TAB 1 — SCORE PREDICTOR
 # =========================================================
 
 with tab1:
 
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    with col1:
+    with c1:
 
         bat_team = st.selectbox(
             "Batting Team",
-            IPL_TEAMS
+            all_teams
         )
 
         bowl_team = st.selectbox(
             "Bowling Team",
-            [t for t in IPL_TEAMS if t != bat_team]
+            [t for t in all_teams if t != bat_team]
         )
 
         venue = st.selectbox(
             "Venue",
-            IPL_VENUES
+            all_venues
         )
 
-    with col2:
+    with c2:
 
-        current_runs = st.number_input(
+        runs = st.number_input(
             "Current Runs",
             0,
             250,
@@ -637,18 +557,15 @@ with tab1:
             1
         )
 
-    if st.button("Predict Final Score"):
+    if st.button("🎯 Predict Final Score"):
 
-        rr = (
-            current_runs
-            / max(overs, 0.1)
-        )
+        rr = runs / overs
 
         X = np.array([[
             team_enc[bat_team],
             team_enc[bowl_team],
             venue_enc[venue],
-            current_runs,
+            runs,
             wickets,
             overs,
             last5_runs,
@@ -656,44 +573,141 @@ with tab1:
             rr
         ]])
 
-        pred = int(
-            reg_model.predict(X)[0]
-        )
+        prediction = int(reg_model.predict(X)[0])
+
+        projected_same_rr = int(rr * 20)
+
+        acceleration = prediction - projected_same_rr
 
         st.markdown(f"""
-        <div class="result-box">
-            <div>Predicted Final Score</div>
-            <div class="big-score">{pred}</div>
+        <div class="box">
+            <div style="text-align:center;">
+                <h2>Predicted Final Score</h2>
+                <div class="big-score">{prediction}</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
+        # -------------------------------------------------
+        # INTERACTIVE MATCH ANALYSIS
+        # -------------------------------------------------
+
+        st.markdown("## 📈 Live Match Analysis")
+
+        m1, m2, m3 = st.columns(3)
+
+        with m1:
+            st.metric(
+                "Current Run Rate",
+                round(rr, 2)
+            )
+
+        with m2:
+            st.metric(
+                "Projected at Same RR",
+                projected_same_rr
+            )
+
+        with m3:
+            st.metric(
+                "AI Expected Finish",
+                prediction
+            )
+
+        # -------------------------------------------------
+        # GRAPH
+        # -------------------------------------------------
+
+        overs_arr = np.arange(overs, 21)
+
+        same_rr_scores = [
+            runs + (rr * (x - overs))
+            for x in overs_arr
+        ]
+
+        ai_scores = np.linspace(
+            runs,
+            prediction,
+            len(overs_arr)
+        )
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=overs_arr,
+            y=same_rr_scores,
+            mode='lines+markers',
+            name='Same Run Rate',
+            line=dict(color='orange', width=4)
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=overs_arr,
+            y=ai_scores,
+            mode='lines+markers',
+            name='AI Predicted Finish',
+            line=dict(color='green', width=4)
+        ))
+
+        fig.update_layout(
+            title="Projected Innings Progression",
+            xaxis_title="Overs",
+            yaxis_title="Score",
+            template="plotly_white",
+            height=500
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
+
+        # Commentary style insights
+
+        st.markdown("## 🏏 Match Insights")
+
+        if rr >= 10:
+            st.success("🔥 Batting side is scoring at an explosive rate.")
+
+        elif rr >= 8:
+            st.info("✅ Batting side is maintaining a strong scoring pace.")
+
+        else:
+            st.warning("⚠️ Run rate is below modern T20 standards.")
+
+        if wickets <= 3:
+            st.success("💪 Plenty of wickets remaining for acceleration.")
+
+        elif wickets >= 7:
+            st.error("❌ Batting side under heavy pressure.")
+
 # =========================================================
-# TAB 2
+# TAB 2 — WIN PREDICTOR
 # =========================================================
 
 with tab2:
 
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    with col1:
+    with c1:
 
         chase_team = st.selectbox(
             "Chasing Team",
-            IPL_TEAMS
+            all_teams
         )
 
         defend_team = st.selectbox(
             "Defending Team",
-            [t for t in IPL_TEAMS if t != chase_team]
+            [t for t in all_teams if t != chase_team]
         )
 
         venue2 = st.selectbox(
             "Venue",
-            IPL_VENUES,
+            all_venues,
             key="venue2"
         )
 
-    with col2:
+    with c2:
 
         target = st.number_input(
             "Target",
@@ -702,8 +716,8 @@ with tab2:
             180
         )
 
-        chase_score = st.number_input(
-            "Current Score",
+        current_score = st.number_input(
+            "Current Chase Score",
             0,
             300,
             90
@@ -718,7 +732,7 @@ with tab2:
         )
 
         wickets2 = st.slider(
-            "Wickets Fallen",
+            "Wickets Lost",
             0,
             9,
             3
@@ -731,16 +745,16 @@ with tab2:
             50
         )
 
-    if st.button("Predict Winner"):
+    if st.button("🏆 Predict Winner"):
 
         rrr = (
-            (target - chase_score)
+            (target - current_score)
             / max(20 - overs2, 0.1)
         )
 
         crr = (
-            chase_score
-            / max(overs2, 0.1)
+            current_score
+            / overs2
         )
 
         X2 = np.array([[
@@ -748,7 +762,7 @@ with tab2:
             team_enc[chase_team],
             venue_enc[venue2],
             target,
-            chase_score,
+            current_score,
             overs2,
             wickets2,
             rrr,
@@ -758,6 +772,12 @@ with tab2:
 
         pred = cls_model.predict(X2)[0]
 
+        probs = cls_model.predict_proba(X2)[0]
+
+        chase_prob = round(probs[0] * 100, 1)
+
+        defend_prob = round(probs[1] * 100, 1)
+
         winner = (
             defend_team
             if pred == 1
@@ -765,47 +785,112 @@ with tab2:
         )
 
         st.markdown(f"""
-        <div class="result-box">
-            <div>Predicted Winner</div>
+        <div class="box">
+            <h2 style="text-align:center;">Predicted Winner</h2>
             <div class="winner">{winner}</div>
         </div>
         """, unsafe_allow_html=True)
 
+        # -------------------------------------------------
+        # WIN PROBABILITY BAR
+        # -------------------------------------------------
+
+        st.markdown("## 📊 Live Win Probability")
+
+        st.progress(int(chase_prob))
+
+        colA, colB = st.columns(2)
+
+        with colA:
+            st.metric(
+                chase_team,
+                f"{chase_prob}%"
+            )
+
+        with colB:
+            st.metric(
+                defend_team,
+                f"{defend_prob}%"
+            )
+
+        # -------------------------------------------------
+        # MATCH STATUS
+        # -------------------------------------------------
+
+        st.markdown("## ⚡ Chase Analysis")
+
+        need_runs = target - current_score
+
+        balls_left = (20 - overs2) * 6
+
+        st.write(f"🏏 Runs Needed: **{need_runs}**")
+        st.write(f"🎯 Required Run Rate: **{round(rrr,2)}**")
+        st.write(f"⚡ Current Run Rate: **{round(crr,2)}**")
+        st.write(f"🟢 Balls Remaining: **{int(balls_left)}**")
+
+        if crr > rrr:
+            st.success("🔥 Chasing side is ahead of the required pace.")
+
+        else:
+            st.warning("⚠️ Chasing side needs acceleration.")
+
+        if wickets2 <= 3:
+            st.success("💪 Enough wickets left for aggressive batting.")
+
+        elif wickets2 >= 7:
+            st.error("❌ Pressure situation — wickets almost finished.")
+
 # =========================================================
-# TAB 3
+# TAB 3 — ANALYTICS
 # =========================================================
 
 with tab3:
 
-    st.subheader("Regression Model")
+    st.subheader("📊 Model Performance")
 
-    st.write(
-        f"R² Score: {round(reg_r2, 4)}"
-    )
+    c1, c2 = st.columns(2)
 
-    st.write(
-        f"RMSE: {round(reg_rmse, 2)}"
-    )
+    with c1:
 
-    st.subheader("Classification Model")
+        st.metric(
+            "Regression R² Score",
+            round(reg_r2, 3)
+        )
 
-    st.write(
-        f"Accuracy: {round(cls_acc * 100, 2)}%"
-    )
+    with c2:
 
-    st.subheader("Dataset Stats")
+        st.metric(
+            "Classification Accuracy",
+            f"{round(cls_acc * 100, 2)}%"
+        )
 
-    st.write(
-        f"Deliveries: {len(raw_df):,}"
-    )
+    st.markdown("---")
 
-    st.write(
-        f"Regression Samples: {len(reg_df):,}"
-    )
+    st.subheader("📂 Dataset Information")
 
-    st.write(
-        f"Classification Samples: {len(cls_df):,}"
-    )
+    d1, d2, d3 = st.columns(3)
+
+    with d1:
+        st.metric(
+            "Total Deliveries",
+            f"{len(raw_df):,}"
+        )
+
+    with d2:
+        st.metric(
+            "Regression Samples",
+            len(reg_df)
+        )
+
+    with d3:
+        st.metric(
+            "Classification Samples",
+            len(cls_df)
+        )
+
+    st.markdown("---")
+
+    st.subheader("📋 Raw Dataset Preview")
 
     st.dataframe(
         raw_df.head(20),
