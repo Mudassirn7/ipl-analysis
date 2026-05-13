@@ -337,7 +337,9 @@ win_df["required_run_rate"] = (
     win_df["balls_left"]
 )
 
+# =========================================================
 # BETTER LABEL
+# =========================================================
 
 win_df["winner"] = np.where(
     win_df["runs_left"] <= 0,
@@ -398,7 +400,6 @@ def train_models():
         random_state=42
     )
 
-    # FIXED MODELS
     rf_r = RandomForestRegressor(
         n_estimators=80,
         max_depth=8,
@@ -457,7 +458,6 @@ def train_models():
         random_state=42
     )
 
-    # FIXED MODELS
     rf_c = RandomForestClassifier(
         n_estimators=80,
         max_depth=7,
@@ -670,29 +670,29 @@ with tab1:
         )
 
         over_num = st.slider(
-    "Overs",
-    0,
-    19,
-    10,
-    key="ov_num1"
-)
+            "Overs",
+            0,
+            19,
+            10,
+            key="ov_num1"
+        )
 
-ball_num = st.slider(
-    "Balls",
-    0,
-    5,
-    0,
-    key="ball_num1"
-)
+        ball_num = st.slider(
+            "Balls",
+            0,
+            5,
+            0,
+            key="ball_num1"
+        )
 
-overs = round(
-    over_num + (ball_num / 6),
-    4
-)
+        overs = round(
+            over_num + (ball_num / 6),
+            4
+        )
 
-st.caption(
-    f"{over_num}.{ball_num} overs"
-)
+        st.caption(
+            f"{over_num}.{ball_num} overs"
+        )
 
     if st.button("Predict Final Score", key="btn1"):
 
@@ -780,29 +780,29 @@ with tab2:
         )
 
         over_num2 = st.slider(
-    "Overs",
-    0,
-    19,
-    10,
-    key="ov_num2"
-)
+            "Overs",
+            0,
+            19,
+            10,
+            key="ov_num2"
+        )
 
-ball_num2 = st.slider(
-    "Balls",
-    0,
-    5,
-    0,
-    key="ball_num2"
-)
+        ball_num2 = st.slider(
+            "Balls",
+            0,
+            5,
+            0,
+            key="ball_num2"
+        )
 
-overs2 = round(
-    over_num2 + (ball_num2 / 6),
-    4
-)
+        overs2 = round(
+            over_num2 + (ball_num2 / 6),
+            4
+        )
 
-st.caption(
-    f"{over_num2}.{ball_num2} overs"
-)
+        st.caption(
+            f"{over_num2}.{ball_num2} overs"
+        )
 
     if st.button("Predict Winner", key="btn2"):
 
@@ -859,7 +859,7 @@ with tab3:
 
     st.dataframe(
         reg_table,
-        use_container_width=True
+        width="stretch"
     )
 
     st.markdown("---")
@@ -870,7 +870,7 @@ with tab3:
 
     st.dataframe(
         cls_table,
-        use_container_width=True
+        width="stretch"
     )
 
 # =========================================================
