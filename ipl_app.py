@@ -266,7 +266,7 @@ with tab1:
         ovs_s    = round(ov_num_s + bl_num_s / 6, 4)
         st.caption(f"📌 {ov_num_s} overs {bl_num_s} balls = {ov_num_s}.{bl_num_s} (cricket notation)")
         l5r_s   = st.number_input("Runs in Last 5 Overs", min_value=0, max_value=100, value=45)
-        l5w_s   = st.slider("Wickets in Last 5 Overs",    0, 5, 1)
+        l5w_s   = st.slider("Wickets in Last 5 Overs",    0, 9, 1)
 
     if st.button("🎯 PREDICT FINAL SCORE", key="b_score"):
         X = np.array([[TEAM_ENC[bat_t], TEAM_ENC.get(bowl_t,0), VENUE_ENC[ven_s],
