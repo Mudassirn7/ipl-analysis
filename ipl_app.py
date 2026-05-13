@@ -1,3 +1,8 @@
+# =========================================================
+# IPL PREDICTOR — STREAMLIT CLOUD FIXED VERSION
+# Works with IPL.zip + IPL.csv
+# =========================================================
+
 import streamlit as st
 import pandas as pd
 import numpy as np
